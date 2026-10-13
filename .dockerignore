@@ -1,0 +1,13 @@
+.git
+.venv
+venv
+.env
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.ipynb_checkpoints
+notebooks
+data/qdrant
+data/*.pkl
+data/eval/results_*.json

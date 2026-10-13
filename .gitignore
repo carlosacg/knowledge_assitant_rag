@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Artefactos generados
+data/*
+!data/eval/
+data/eval/*
+!data/eval/golden_set.jsonl

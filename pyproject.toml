@@ -1,0 +1,19 @@
+[project]
+name = "engineering-knowledge-rag"
+version = "0.1.0"
+description = "Asistente RAG para equipos de ingeniería con evidencia trazable desde la documentación interna."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
