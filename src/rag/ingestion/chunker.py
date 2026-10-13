@@ -1,11 +1,11 @@
-"""Chunking adaptativo de Markdown: distingue bloques de código de prosa.
+"""Adaptive Markdown chunking: distinguishes code blocks from prose.
 
-Estrategia:
-1. Se divide el documento por encabezados -> secciones con *breadcrumb* (Doc > Sección > Sub).
-2. Dentro de cada sección se separan segmentos de prosa y bloques de código cercados (```).
-3. Código: unidad atómica. Solo se divide si excede ``max_code_tokens`` y siempre por líneas,
-   reabriendo/cerrando el fence en cada parte. El párrafo corto que lo introduce se le adjunta.
-4. Prosa: splitter recursivo por tokens (párrafo -> línea -> oración -> palabra) con solapamiento.
+Strategy:
+1. Split the document by headings -> sections with a *breadcrumb* (Doc > Section > Sub).
+2. Within each section, separate prose segments from fenced code blocks (```).
+3. Code: atomic unit. Split only if it exceeds ``max_code_tokens``, always by lines,
+   reopening/closing the fence in each part. The short paragraph introducing it is attached.
+4. Prose: recursive token splitter (paragraph -> line -> sentence -> word) with overlap.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ TokenCounter = Callable[[str], int]
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 _FENCE_OPEN_RE = re.compile(r"^\s*(`{3,}|~{3,})\s*([\w+#.-]*)")
 
-# (regex de corte, string para volver a unir) — de más gruesa a más fina.
+# (split regex, string to rejoin with) — from coarsest to finest.
 _PROSE_SEPARATORS: tuple[tuple[str, str], ...] = (
     (r"\n\s*\n", "\n\n"),
     (r"\n", "\n"),
@@ -37,7 +37,7 @@ class Segment:
     kind: str  # "prose" | "code"
     text: str
     language: str | None = None
-    intro: str | None = None  # párrafo de prosa que introduce un bloque de código
+    intro: str | None = None  # prose paragraph that introduces a code block
 
 
 @dataclass
@@ -55,7 +55,7 @@ def _is_fence_close(line: str, fence: str) -> bool:
 
 
 def parse_sections(markdown: str) -> list[Section]:
-    """Parte el Markdown en secciones (por encabezado) con segmentos de prosa/código."""
+    """Splits the Markdown into sections (by heading) with prose/code segments."""
     sections: list[Section] = []
     stack: list[tuple[int, str]] = []
     segments: list[Segment] = []
@@ -103,18 +103,18 @@ def parse_sections(markdown: str) -> list[Section]:
 
         prose.append(line)
 
-    if fence is not None:  # bloque sin cerrar: se cierra para no producir fences rotos
+    if fence is not None:  # unclosed block: close it to avoid broken fences
         code.append(fence)
         segments.append(Segment("code", "\n".join(code), language))
     flush_section()
     return sections
 
 
-# --------------------------------------------------------------------------- prosa
+# --------------------------------------------------------------------------- prose
 
 
 def _merge_splits(splits: list[str], joiner: str, size: int, overlap: int, count: TokenCounter) -> list[str]:
-    """Une piezas atómicas en chunks de ``size`` tokens con ``overlap`` tokens de solapamiento."""
+    """Merges atomic pieces into chunks of ``size`` tokens with ``overlap`` tokens of overlap."""
     chunks: list[str] = []
     window: list[tuple[str, int]] = []
     total = 0
@@ -125,7 +125,7 @@ def _merge_splits(splits: list[str], joiner: str, size: int, overlap: int, count
         extra = joiner_tokens if window else 0
         if window and total + extra + n > size:
             chunks.append(joiner.join(p for p, _ in window).strip())
-            # Se conserva la cola de la ventana como solapamiento.
+            # Keep the tail of the window as overlap.
             while window and (total > overlap or total + joiner_tokens + n > size):
                 _, first_n = window.pop(0)
                 total -= first_n + (joiner_tokens if window else 0)
@@ -145,7 +145,7 @@ def split_prose(
     count: TokenCounter = count_tokens,
     separators: tuple[tuple[str, str], ...] = _PROSE_SEPARATORS,
 ) -> list[str]:
-    """Splitter recursivo por tokens (estilo RecursiveCharacterTextSplitter)."""
+    """Recursive token splitter (RecursiveCharacterTextSplitter style)."""
     text = text.strip()
     if not text:
         return []
@@ -157,7 +157,7 @@ def split_prose(
         if len(parts) > 1:
             break
     else:
-        return [text]  # sin separadores aplicables: se acepta sobredimensionado
+        return [text]  # no applicable separators: accept it oversized
 
     finer = separators[idx + 1 :]
     result: list[str] = []
@@ -175,11 +175,11 @@ def split_prose(
     return result
 
 
-# --------------------------------------------------------------------------- código
+# --------------------------------------------------------------------------- code
 
 
 def split_code(code: str, max_tokens: int, count: TokenCounter = count_tokens) -> list[str]:
-    """Divide un bloque cercado solo si excede ``max_tokens``; cada parte queda con su fence."""
+    """Splits a fenced block only if it exceeds ``max_tokens``; each part keeps its fence."""
     if count(code) <= max_tokens:
         return [code]
 
@@ -192,14 +192,14 @@ def split_code(code: str, max_tokens: int, count: TokenCounter = count_tokens) -
     closer = lines[-1] if has_close else fence
     budget = max(1, max_tokens - count(opener) - count(closer))
 
-    # Bloques lógicos separados por líneas en blanco; si uno excede el presupuesto, por líneas.
+    # Logical blocks separated by blank lines; if one exceeds the budget, split by lines.
     blocks: list[list[str]] = [[]]
     for line in body:
         if not line.strip() and blocks[-1]:
             blocks.append([])
         else:
             blocks[-1].append(line)
-    # (texto, separador previo): "\n\n" entre bloques lógicos, "\n" entre líneas de un mismo bloque.
+    # (text, preceding separator): "\n\n" between logical blocks, "\n" between lines of the same block.
     units: list[tuple[str, str]] = []
     for block in filter(None, blocks):
         block_text = "\n".join(block)
@@ -244,7 +244,7 @@ class MarkdownChunker:
         self.count = counter
 
     def _attach_intros(self, segments: list[Segment]) -> None:
-        """Mueve el último párrafo corto de la prosa previa a su bloque de código."""
+        """Moves the last short paragraph of the preceding prose into its code block."""
         for prev, seg in zip(segments, segments[1:]):
             if seg.kind != "code" or prev.kind != "prose":
                 continue

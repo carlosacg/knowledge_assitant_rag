@@ -23,7 +23,7 @@ services:
     volumes:
       - qdrant_storage:/qdrant/storage
     healthcheck:
-      # La imagen no trae curl: se verifica el puerto vía /dev/tcp.
+      # The image ships without curl: check the port via /dev/tcp.
       test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
       interval: 5s
       timeout: 3s

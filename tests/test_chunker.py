@@ -65,13 +65,13 @@ def test_headings_inside_code_are_not_sections():
 def test_code_blocks_never_broken():
     chunks = make_chunker().chunk(DOC)
     code_chunks = [c for c in chunks if c.metadata["content_type"] == "code"]
-    assert len(code_chunks) >= 3  # el bloque largo se divide en varias partes + el bloque bash
+    assert len(code_chunks) >= 3  # the long block is split into several parts + the bash block
     for chunk in chunks:
         assert _fences(chunk.text) % 2 == 0, f"fence desbalanceado en {chunk.chunk_id}"
     for chunk in code_chunks:
         code_part = chunk.text[chunk.text.index("```") :]
         assert code_part.startswith("```python") or code_part.startswith("```bash")
-        # Ninguna línea de código queda cortada a la mitad.
+        # No code line is cut in half.
         for line in code_part.splitlines()[1:-1]:
             assert line == "" or line.startswith(("    ", "def ", "# ", "export"))
 

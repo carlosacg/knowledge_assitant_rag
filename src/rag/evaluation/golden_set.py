@@ -1,4 +1,4 @@
-"""Dataset de evaluación (golden set) con preguntas, respuestas de referencia y fuentes relevantes."""
+"""Evaluation dataset (golden set) with questions, reference answers and relevant sources."""
 
 from __future__ import annotations
 

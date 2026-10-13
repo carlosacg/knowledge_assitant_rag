@@ -1,5 +1,5 @@
-# Engineering Knowledge RAG — atajos sobre docker compose.
-# Uso: make help
+# Engineering Knowledge RAG — docker compose shortcuts.
+# Usage: make help
 
 COMPOSE   ?= docker compose
 RUN       := $(COMPOSE) run --rm
@@ -14,82 +14,82 @@ REQUESTS  ?= 200
 .PHONY: help env build up down restart qdrant ingest api logs ps ready ask ask-debug \
         eval eval-fast test test-k load-test shell clean clean-all
 
-help: ## Muestra esta ayuda
+help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "  Variables: Q=\"pregunta\" ARGS=\"--env staging --mode hybrid\" MODES=dense,hybrid"
+	@echo "  Variables: Q=\"question\" ARGS=\"--env staging --mode hybrid\" MODES=dense,hybrid"
 	@echo "             CONCURRENCY=50 REQUESTS=200 WEB_CONCURRENCY=2"
 
 # ---------------------------------------------------------------- setup
 
-env: ## Crea .env a partir de .env.example (si no existe)
-	@test -f .env && echo ".env ya existe" || (cp .env.example .env && echo ".env creado: completar OPENAI_API_KEY")
+env: ## Create .env from .env.example (if it does not exist)
+	@test -f .env && echo ".env already exists" || (cp .env.example .env && echo ".env created: fill in OPENAI_API_KEY")
 
-build: ## Construye la imagen Docker
+build: ## Build the Docker image
 	$(COMPOSE) build api
 
-# ---------------------------------------------------------------- servicios
+# ---------------------------------------------------------------- services
 
-up: qdrant ingest api ## Flujo completo: Qdrant + ingesta + API
+up: qdrant ingest api ## Full flow: Qdrant + ingestion + API
 
-qdrant: ## Levanta Qdrant
+qdrant: ## Start Qdrant
 	$(COMPOSE) up -d qdrant
 
-ingest: qdrant ## Indexa docs/ en Qdrant y construye BM25 (recrea la colección)
+ingest: qdrant ## Index docs/ into Qdrant and build BM25 (recreates the collection)
 	$(RUN) ingest
 
-api: ## Levanta la API (gunicorn + uvicorn workers) en http://localhost:8000
+api: ## Start the API (gunicorn + uvicorn workers) at http://localhost:8000
 	$(COMPOSE) up -d api
 
-restart: ## Reinicia la API (p. ej. tras re-ingestar, para recargar BM25)
+restart: ## Restart the API (e.g. after re-ingesting, to reload BM25)
 	$(COMPOSE) restart api
 
-down: ## Detiene y elimina los contenedores (conserva el volumen de Qdrant)
+down: ## Stop and remove the containers (keeps the Qdrant volume)
 	$(COMPOSE) down
 
-logs: ## Sigue los logs de la API
+logs: ## Follow the API logs
 	$(COMPOSE) logs -f api
 
-ps: ## Estado de los contenedores
+ps: ## Container status
 	$(COMPOSE) ps
 
-ready: ## Consulta el readiness de la API
+ready: ## Check the API readiness
 	@curl -s http://localhost:8000/health/ready; echo
 
-# ---------------------------------------------------------------- consultas
+# ---------------------------------------------------------------- queries
 
-ask: ## Pregunta por CLI: make ask Q="..." [ARGS="--env staging"]
+ask: ## Ask via the CLI: make ask Q="..." [ARGS="--env staging"]
 	$(RUN) api python main.py ask "$(Q)" $(ARGS)
 
-ask-debug: ## Igual que ask, mostrando los rankings por etapa
+ask-debug: ## Same as ask, showing per-stage rankings
 	$(RUN) api python main.py ask "$(Q)" --debug $(ARGS)
 
-# ---------------------------------------------------------------- calidad
+# ---------------------------------------------------------------- quality
 
-test: ## Corre la suite de tests (sin red ni API keys)
+test: ## Run the test suite (no network or API keys)
 	$(RUN) --no-deps tests
 
-test-k: ## Corre tests filtrados: make test-k K=chunker
+test-k: ## Run filtered tests: make test-k K=chunker
 	$(RUN) --no-deps tests pytest -q -k "$(K)"
 
-eval: qdrant ## Evaluación completa: retrieval por modo + abstención + Ragas
+eval: qdrant ## Full evaluation: retrieval per mode + abstention + Ragas
 	$(RUN) eval python main.py eval --modes $(MODES)
 
-eval-fast: qdrant ## Evaluación sin Ragas (sin LLM-judge, más barata)
+eval-fast: qdrant ## Evaluation without Ragas (no LLM-judge, cheaper)
 	$(RUN) eval python main.py eval --modes $(MODES) --no-ragas
 
-load-test: ## Prueba de carga contra la API levantada
+load-test: ## Load test against the running API
 	$(RUN) --no-deps api python scripts/load_test.py --url $(API_URL) \
 		--concurrency $(CONCURRENCY) --requests $(REQUESTS)
 
-# ---------------------------------------------------------------- utilidades
+# ---------------------------------------------------------------- utilities
 
-shell: ## Shell dentro del contenedor de la app
+shell: ## Shell inside the app container
 	$(RUN) --no-deps api bash
 
-clean: ## Borra artefactos generados (índice BM25, resultados de eval)
+clean: ## Delete generated artifacts (BM25 index, eval results)
 	rm -f data/bm25_index.pkl data/eval/results_*.json data/eval/latest_results.json
 
-clean-all: clean ## clean + elimina contenedores y el volumen de Qdrant
+clean-all: clean ## clean + remove containers and the Qdrant volume
 	$(COMPOSE) down -v

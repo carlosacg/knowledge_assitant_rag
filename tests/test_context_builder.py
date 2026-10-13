@@ -38,7 +38,7 @@ def test_context_token_budget_keeps_first():
     long_text = "palabra " * 500
     chunks = [_sc("a", long_text), _sc("b", "corto")]
     ctx = build_context(chunks, max_tokens=50)
-    assert [c.chunk_id for c in ctx.used] == ["a"]  # el primero entra aunque exceda
+    assert [c.chunk_id for c in ctx.used] == ["a"]  # the first one is kept even if it exceeds the budget
 
 
 def test_extract_citations():

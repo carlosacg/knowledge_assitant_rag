@@ -1,4 +1,4 @@
-"""Aplicación FastAPI (``rag.api.app:app`` para gunicorn/uvicorn)."""
+"""FastAPI application (``rag.api.app:app`` for gunicorn/uvicorn)."""
 
 from __future__ import annotations
 

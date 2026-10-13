@@ -1,4 +1,4 @@
-"""Middleware ASGI puro (sin BaseHTTPMiddleware: menor overhead bajo alta concurrencia)."""
+"""Pure ASGI middleware (no BaseHTTPMiddleware: lower overhead under high concurrency)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ _SAFE_ID = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
 class RequestContextMiddleware:
-    """Asigna/propaga ``X-Request-ID``, mide latencia y emite un log de acceso estructurado."""
+    """Assigns/propagates ``X-Request-ID``, measures latency and emits a structured access log."""
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app

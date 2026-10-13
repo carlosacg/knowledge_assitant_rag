@@ -1,4 +1,4 @@
-"""Fábricas de clientes externos (OpenAI, Qdrant) compartidas por CLI, API y evaluación."""
+"""External client factories (OpenAI, Qdrant) shared by the CLI, API and evaluation."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from rag.config import Settings
 
 
 def create_http_client(settings: Settings) -> httpx.AsyncClient:
-    """Pool de conexiones compartido: evita abrir un socket TLS por request bajo alta concurrencia."""
+    """Shared connection pool: avoids opening a TLS socket per request under high concurrency."""
     return httpx.AsyncClient(
         limits=httpx.Limits(
             max_connections=settings.http_max_connections,

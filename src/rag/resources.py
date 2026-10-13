@@ -1,7 +1,7 @@
-"""Composición de dependencias del sistema (composition root).
+"""System dependency wiring (composition root).
 
-Lo usan el ``lifespan`` de FastAPI (una instancia por worker), el CLI y la evaluación, de modo
-que todos ejecutan exactamente el mismo pipeline.
+Used by the FastAPI ``lifespan`` (one instance per worker), the CLI and the evaluation, so
+they all run exactly the same pipeline.
 """
 
 from __future__ import annotations
@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 
 
 class InFlightLimiter:
-    """Límite no bloqueante de requests en vuelo por worker (backpressure -> 503).
+    """Non-blocking per-worker limit on in-flight requests (backpressure -> 503).
 
-    Cada worker tiene un único event loop, así que el contador no necesita locks.
+    Each worker has a single event loop, so the counter needs no locks.
     """
 
     def __init__(self, max_in_flight: int) -> None:
@@ -70,7 +70,7 @@ def load_bm25(settings: Settings) -> BM25Index | None:
 
 @asynccontextmanager
 async def open_resources(settings: Settings, *, load_reranker: bool | None = None) -> AsyncIterator[AppResources]:
-    """Crea (una sola vez) clientes, modelos e índices y los libera al salir."""
+    """Creates clients, models and indexes (once) and releases them on exit."""
     async with AsyncExitStack() as stack:
         http_client = create_http_client(settings)
         stack.push_async_callback(http_client.aclose)
@@ -97,7 +97,7 @@ async def open_resources(settings: Settings, *, load_reranker: bool | None = Non
                 batch_size=settings.reranker_batch_size,
                 torch_threads=settings.torch_threads,
             )
-            # Carga + inferencia dummy en el arranque: el primer request no paga la latencia.
+            # Load + dummy inference at startup: the first request does not pay the latency.
             await anyio.to_thread.run_sync(reranker.warmup)
 
         retriever = HybridRetriever(

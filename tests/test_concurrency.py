@@ -17,7 +17,7 @@ async def test_requests_are_processed_concurrently(tmp_path):
         )
         elapsed = time.perf_counter() - started
     assert all(r.status_code == 200 for r in responses)
-    # Secuencialmente serían ~4 s; en paralelo, ~0.2 s (el event loop nunca se bloquea).
+    # Sequentially this would take ~4 s; in parallel, ~0.2 s (the event loop never blocks).
     assert elapsed < 1.5
     assert resources.request_limiter.in_flight == 0
 
@@ -34,7 +34,7 @@ async def test_backpressure_returns_503_when_saturated(tmp_path):
     assert statuses == [200, 200, 503, 503, 503]
     rejected = next(r for r in responses if r.status_code == 503)
     assert rejected.headers["retry-after"] == "1"
-    assert resources.request_limiter.in_flight == 0  # todos los slots se liberaron
+    assert resources.request_limiter.in_flight == 0  # all slots were released
 
 
 def test_inflight_limiter():

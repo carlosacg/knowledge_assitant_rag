@@ -1,4 +1,4 @@
-"""Logging estructurado en JSON."""
+"""Structured JSON logging."""
 
 from __future__ import annotations
 

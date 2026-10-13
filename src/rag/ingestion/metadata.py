@@ -1,4 +1,4 @@
-"""Normalización y enriquecimiento de metadata a nivel documento."""
+"""Document-level metadata normalization and enrichment."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 VALID_DOC_TYPES = {"architecture", "standard", "runbook", "schema", "deployment"}
 VALID_ENVIRONMENTS = {"production", "staging", "all"}
 
-# Inferencia de tech_stack cuando el frontmatter no lo declara.
+# tech_stack inference when the frontmatter does not declare it.
 _STACK_KEYWORDS: dict[str, tuple[str, ...]] = {
     "django": ("django", "drf", "manage.py"),
     "fastapi": ("fastapi", "pydantic", "uvicorn"),
@@ -20,7 +20,7 @@ _STACK_KEYWORDS: dict[str, tuple[str, ...]] = {
     "python": ("python",),
 }
 
-# Carpeta de docs -> doc_type por defecto.
+# Docs folder -> default doc_type.
 _FOLDER_DOC_TYPE = {"architecture": "architecture", "backend": "standard", "database": "schema", "infra": "deployment"}
 
 _H1_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
@@ -50,7 +50,7 @@ def _as_date(value: Any) -> str | None:
 
 
 def normalize_metadata(raw: dict[str, Any], *, filepath: str, content: str) -> dict[str, Any]:
-    """Devuelve la metadata canónica de un documento (valores en minúscula, defaults e inferencias)."""
+    """Returns a document's canonical metadata (lowercased values, defaults and inferences)."""
     parts = PurePosixPath(filepath).parts
     folder = parts[-2] if len(parts) >= 2 else ""
 

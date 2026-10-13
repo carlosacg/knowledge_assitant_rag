@@ -1,8 +1,8 @@
-"""Evaluación end-to-end con Ragas: Context Precision, Context Recall, Faithfulness, Answer Relevancy.
+"""End-to-end evaluation with Ragas: Context Precision, Context Recall, Faithfulness, Answer Relevancy.
 
-Ragas y LangChain se importan de forma diferida: no son necesarios para servir la API ni para
-los tests unitarios. ``evaluate`` es síncrono y maneja su propio event loop, por lo que se
-invoca fuera de ``asyncio.run``.
+Ragas and LangChain are imported lazily: they are not needed to serve the API or for the
+unit tests. ``evaluate`` is synchronous and manages its own event loop, so it is called
+outside ``asyncio.run``.
 """
 
 from __future__ import annotations

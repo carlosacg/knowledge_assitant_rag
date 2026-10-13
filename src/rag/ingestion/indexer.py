@@ -1,4 +1,4 @@
-"""Orquestación de la ingesta: load -> chunk -> embed -> upsert (Qdrant) + índice BM25."""
+"""Ingestion orchestration: load -> chunk -> embed -> upsert (Qdrant) + BM25 index."""
 
 from __future__ import annotations
 

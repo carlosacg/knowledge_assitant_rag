@@ -1,7 +1,7 @@
-"""Métricas de recuperación offline (sin LLM), a nivel documento.
+"""Offline, document-level retrieval metrics (no LLM).
 
-Los chunks recuperados se convierten en un ranking de documentos únicos (primera aparición de
-cada ``filepath``) y se comparan contra ``relevant_sources`` del golden set.
+Retrieved chunks are turned into a ranking of unique documents (first appearance of
+each ``filepath``) and compared against the golden set's ``relevant_sources``.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from collections.abc import Iterable, Sequence
 
 
 def ranked_documents(retrieved_sources: Sequence[str], k: int | None = None) -> list[str]:
-    """Filepaths únicos en orden de primera aparición dentro de los top-``k`` chunks."""
+    """Unique filepaths in order of first appearance within the top-``k`` chunks."""
     window = retrieved_sources if k is None else retrieved_sources[:k]
     return list(dict.fromkeys(window))
 
@@ -29,7 +29,7 @@ def recall_at_k(retrieved_sources: Sequence[str], relevant: Iterable[str], k: in
 
 
 def precision_at_k(retrieved_sources: Sequence[str], relevant: Iterable[str], k: int) -> float:
-    """Proporción de los top-``k`` chunks que provienen de un documento relevante."""
+    """Fraction of the top-``k`` chunks that come from a relevant document."""
     window = retrieved_sources[:k]
     if not window:
         return 0.0

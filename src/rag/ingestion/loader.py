@@ -1,4 +1,4 @@
-"""Carga de documentos Markdown con frontmatter YAML."""
+"""Loading of Markdown documents with YAML frontmatter."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def load_document(path: Path, root: Path) -> Document:
 
 
 def load_documents(docs_dir: Path) -> list[Document]:
-    """Carga todos los ``*.md`` bajo ``docs_dir``. El filepath queda relativo al padre (``docs/...``)."""
+    """Loads every ``*.md`` under ``docs_dir``. The filepath is relative to its parent (``docs/...``)."""
     if not docs_dir.is_dir():
         raise FileNotFoundError(f"No existe el directorio de documentación: {docs_dir}")
     root = docs_dir.parent

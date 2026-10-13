@@ -1,4 +1,4 @@
-"""Evaluación completa: métricas de retrieval por modo + abstención + Ragas sobre el pipeline final."""
+"""Full evaluation: retrieval metrics per mode + abstention + Ragas on the final pipeline."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ async def evaluate_retrieval(
     for mode in modes:
 
         async def evaluate_item(item: GoldenItem, mode: str = mode) -> dict[str, Any]:
-            # keep_all: el ranking completo (top-K, reordenado si aplica) para medir recall@20 y MRR.
+            # keep_all: the full ranking (top-K, reranked if applicable) to measure recall@20 and MRR.
             outcome = await pipeline.retrieve(item.question, mode, keep_all=True)
             sources = [c.chunk.metadata.get("filepath", "") for c in outcome.chunks]
             return {

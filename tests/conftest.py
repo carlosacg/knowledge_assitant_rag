@@ -1,4 +1,4 @@
-"""Fakes deterministas (sin red) para embeddings, LLM, reranker y un corpus de ejemplo."""
+"""Deterministic (offline) fakes for embeddings, LLM, reranker and a sample corpus."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def word_count(text: str) -> int:
 
 
 class FakeEmbedder:
-    """Bag-of-words hasheado y normalizado: textos con vocabulario común quedan cercanos."""
+    """Hashed, normalized bag-of-words: texts with shared vocabulary end up close together."""
 
     dim = FAKE_DIM
 
@@ -45,7 +45,7 @@ class FakeEmbedder:
 
 
 class FakeReranker:
-    """Score = proporción de tokens de la consulta presentes en el texto (0..1)."""
+    """Score = fraction of query tokens present in the text (0..1)."""
 
     loaded = True
 

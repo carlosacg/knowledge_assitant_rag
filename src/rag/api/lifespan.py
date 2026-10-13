@@ -1,4 +1,4 @@
-"""Ciclo de vida de la aplicación: inicializa y libera recursos una vez por worker."""
+"""Application lifecycle: initializes and releases resources once per worker."""
 
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Startup: clientes async con pool (OpenAI/Qdrant), BM25, reranker precalentado y limitadores.
+    """Startup: pooled async clients (OpenAI/Qdrant), BM25, pre-warmed reranker and limiters.
 
-    Todo queda en ``app.state.resources`` y se comparte entre requests del worker; ``depends.py``
-    lo expone a los endpoints. Shutdown: cierre ordenado de conexiones (AsyncExitStack).
+    Everything lives in ``app.state.resources`` and is shared across the worker's requests;
+    ``depends.py`` exposes it to the endpoints. Shutdown: orderly connection close (AsyncExitStack).
     """
     settings = get_settings()
     configure_logging(settings.log_level)

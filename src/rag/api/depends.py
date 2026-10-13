@@ -1,7 +1,7 @@
-"""Dependencias de FastAPI.
+"""FastAPI dependencies.
 
-Ninguna dependencia crea objetos por request: todas leen recursos ya inicializados en el
-``lifespan`` (``app.state.resources``). Para tests basta con ``app.dependency_overrides``.
+No dependency creates per-request objects: they all read resources already initialized in the
+``lifespan`` (``app.state.resources``). For tests, ``app.dependency_overrides`` is enough.
 """
 
 from __future__ import annotations
@@ -45,10 +45,10 @@ def get_request_id(request: Request) -> str:
 
 
 async def concurrency_guard(resources: ResourcesDep) -> AsyncIterator[None]:
-    """Backpressure: si el worker ya tiene el máximo de requests en vuelo, rechaza con 503.
+    """Backpressure: if the worker already has the maximum in-flight requests, reject with 503.
 
-    Rechazar rápido es preferible a encolar sin límite: mantiene la latencia acotada y le
-    permite al balanceador / cliente reintentar en otro worker.
+    Failing fast beats unbounded queuing: it keeps latency bounded and lets the
+    load balancer / client retry on another worker.
     """
     limiter = resources.request_limiter
     if not limiter.try_acquire():

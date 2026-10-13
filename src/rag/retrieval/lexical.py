@@ -1,8 +1,8 @@
-"""Búsqueda léxica BM25 con un tokenizer que preserva identificadores técnicos.
+"""BM25 lexical search with a tokenizer that preserves technical identifiers.
 
-``PAYMENTS_DB_URL``, ``/api/v1/payments/refunds`` o ``payments.refund.requested`` se indexan
-como token completo *y* por sus partes, de modo que tanto la consulta exacta como la parcial
-("refunds", "db url") encuentran el fragmento.
+``PAYMENTS_DB_URL``, ``/api/v1/payments/refunds`` or ``payments.refund.requested`` are indexed
+as a full token *and* by their parts, so both exact and partial queries
+("refunds", "db url") find the chunk.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def tokenize(text: str) -> list[str]:
 
 
 class BM25Index:
-    """Índice BM25 en memoria (solo lectura tras construirse, seguro para lecturas concurrentes)."""
+    """In-memory BM25 index (read-only once built, safe for concurrent reads)."""
 
     def __init__(self, chunks: list[Chunk], tokenized: list[list[str]]) -> None:
         if not chunks:
@@ -84,12 +84,12 @@ class BM25Index:
         tmp = path.with_suffix(".tmp")
         with tmp.open("wb") as fh:
             pickle.dump(payload, fh, protocol=pickle.HIGHEST_PROTOCOL)
-        tmp.replace(path)  # escritura atómica: los workers nunca leen un archivo a medias
+        tmp.replace(path)  # atomic write: workers never read a half-written file
 
     @classmethod
     def load(cls, path: Path) -> BM25Index:
         with path.open("rb") as fh:
-            payload = pickle.load(fh)  # archivo generado por nuestro propio ingest
+            payload = pickle.load(fh)  # file produced by our own ingest
         if payload.get("version") != _INDEX_VERSION:
             raise ValueError(f"Versión de índice BM25 incompatible: {payload.get('version')}")
         return cls([Chunk.from_payload(p) for p in payload["chunks"]], payload["tokenized"])

@@ -1,4 +1,4 @@
-"""Búsqueda híbrida: densa (Qdrant) + léxica (BM25) fusionadas con Reciprocal Rank Fusion."""
+"""Hybrid search: dense (Qdrant) + lexical (BM25) fused with Reciprocal Rank Fusion."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from rag.retrieval.vector_store import QdrantVectorStore
 def reciprocal_rank_fusion(
     rankings: Mapping[str, Sequence[ScoredChunk]], k: int = 60, top_k: int | None = None
 ) -> list[ScoredChunk]:
-    """RRF: score(d) = Σ_r 1 / (k + rank_r(d)). No requiere normalizar scores heterogéneos."""
+    """RRF: score(d) = Σ_r 1 / (k + rank_r(d)). No need to normalize heterogeneous scores."""
     fused: dict[str, ScoredChunk] = {}
     for name, ranking in rankings.items():
         for rank, item in enumerate(ranking, start=1):
@@ -61,7 +61,7 @@ class HybridRetriever:
     async def lexical_search(self, query: str, top_k: int, filters: SearchFilters | None) -> list[ScoredChunk]:
         if self.bm25 is None:
             return []
-        # BM25 es CPU-bound: se ejecuta fuera del event loop.
+        # BM25 is CPU-bound: run it off the event loop.
         return await anyio.to_thread.run_sync(
             partial(self.bm25.search, query, top_k, filters), limiter=self.cpu_limiter
         )

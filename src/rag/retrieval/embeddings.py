@@ -1,4 +1,4 @@
-"""Generación de embeddings densos (OpenAI) con batching y caché de consultas."""
+"""Dense embedding generation (OpenAI) with batching and a query cache."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ class OpenAIEmbedder:
         self.dim = dim
         self._batch_size = batch_size
         self._parallel = asyncio.Semaphore(max_parallel_batches)
-        # Las consultas repetidas son frecuentes (FAQ técnicas): se evita pagar el round-trip.
+        # Repeated queries are common (technical FAQs): avoid paying for the round-trip.
         self._cache = query_cache
 
     async def _embed_batch(self, batch: list[str]) -> list[list[float]]:

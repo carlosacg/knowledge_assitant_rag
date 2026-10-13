@@ -1,4 +1,4 @@
-"""Prompts con restricciones de fidelidad (anti-alucinación)."""
+"""Prompts with faithfulness constraints (anti-hallucination)."""
 
 from __future__ import annotations
 

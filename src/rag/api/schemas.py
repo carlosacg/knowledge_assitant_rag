@@ -1,4 +1,4 @@
-"""Contratos de la API (Pydantic v2)."""
+"""API contracts (Pydantic v2)."""
 
 from __future__ import annotations
 

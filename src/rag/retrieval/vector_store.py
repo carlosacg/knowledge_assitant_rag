@@ -1,4 +1,4 @@
-"""Cliente del vector store (Qdrant) para indexación y búsqueda por similitud coseno."""
+"""Vector store client (Qdrant) for indexing and cosine similarity search."""
 
 from __future__ import annotations
 

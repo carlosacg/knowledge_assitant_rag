@@ -1,4 +1,4 @@
-"""CLI del asistente: ingest | ask | eval | serve."""
+"""Assistant CLI: ingest | ask | eval | serve."""
 
 from __future__ import annotations
 
@@ -31,9 +31,9 @@ def _validate_mode(mode: str) -> str:
 
 @app.command()
 def ingest(
-    rebuild: Annotated[bool, typer.Option("--rebuild/--no-rebuild", help="Recrear la colección")] = True,
+    rebuild: Annotated[bool, typer.Option("--rebuild/--no-rebuild", help="Recreate the collection")] = True,
 ) -> None:
-    """Chunking + metadata + embeddings -> Qdrant, y construcción del índice BM25."""
+    """Chunking + metadata + embeddings -> Qdrant, and BM25 index build."""
     from rag.clients import create_openai_client, create_qdrant_client
     from rag.ingestion.indexer import run_ingestion
     from rag.retrieval.embeddings import OpenAIEmbedder
@@ -93,14 +93,14 @@ def _print_answer(answer: Answer, debug: bool) -> None:
 
 @app.command()
 def ask(
-    question: Annotated[str, typer.Argument(help="Pregunta técnica")],
-    stack: Annotated[list[str] | None, typer.Option("--stack", help="Filtro tech_stack (repetible)")] = None,
+    question: Annotated[str, typer.Argument(help="Technical question")],
+    stack: Annotated[list[str] | None, typer.Option("--stack", help="tech_stack filter (repeatable)")] = None,
     env: Annotated[str | None, typer.Option("--env", help="production | staging")] = None,
     doc_type: Annotated[str | None, typer.Option("--doc-type")] = None,
     mode: Annotated[str, typer.Option("--mode", callback=_validate_mode)] = "hybrid_rerank",
-    debug: Annotated[bool, typer.Option("--debug", help="Mostrar rankings por etapa")] = False,
+    debug: Annotated[bool, typer.Option("--debug", help="Show per-stage rankings")] = False,
 ) -> None:
-    """Consulta el asistente (hybrid search + rerank + LLM con citas)."""
+    """Query the assistant (hybrid search + rerank + LLM with citations)."""
     from rag.resources import open_resources
 
     settings = get_settings()
@@ -116,11 +116,11 @@ def ask(
 
 @app.command("eval")
 def evaluate(
-    modes: Annotated[str, typer.Option(help="Modos separados por coma o 'all'")] = "all",
-    ragas: Annotated[bool, typer.Option("--ragas/--no-ragas", help="Incluir métricas Ragas (LLM-judge)")] = True,
+    modes: Annotated[str, typer.Option(help="Comma-separated modes or 'all'")] = "all",
+    ragas: Annotated[bool, typer.Option("--ragas/--no-ragas", help="Include Ragas metrics (LLM-judge)")] = True,
     concurrency: Annotated[int, typer.Option(min=1, max=32)] = 4,
 ) -> None:
-    """Evalúa retrieval (Hit/Recall/MRR/nDCG por modo), abstención y Ragas."""
+    """Evaluate retrieval (Hit/Recall/MRR/nDCG per mode), abstention and Ragas."""
     from rag.evaluation.run_eval import run_evaluation
 
     settings = get_settings()
@@ -156,7 +156,7 @@ def serve(
     workers: Annotated[int, typer.Option(min=1)] = 1,
     reload: bool = False,
 ) -> None:
-    """Servidor de desarrollo (en Docker se usa gunicorn + uvicorn workers)."""
+    """Development server (Docker uses gunicorn + uvicorn workers)."""
     import uvicorn
 
     uvicorn.run("rag.api.app:app", host=host, port=port, workers=workers, reload=reload, app_dir="src")

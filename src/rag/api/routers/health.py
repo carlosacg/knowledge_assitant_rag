@@ -10,17 +10,17 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health", response_model=HealthResponse)
 async def liveness() -> HealthResponse:
-    """Liveness: el proceso responde (no toca dependencias externas)."""
+    """Liveness: the process responds (does not touch external dependencies)."""
     return HealthResponse(status="ok")
 
 
 @router.get("/health/ready", response_model=HealthResponse)
 async def readiness(resources: ResourcesDep, response: Response) -> HealthResponse:
-    """Readiness: Qdrant accesible con datos indexados, índice BM25 cargado y reranker listo."""
+    """Readiness: Qdrant reachable with indexed data, BM25 index loaded and reranker ready."""
     checks: dict[str, object] = {}
     try:
         checks["qdrant_points"] = await resources.vector_store.count()
-    except Exception as exc:  # noqa: BLE001 - se reporta el motivo
+    except Exception as exc:  # noqa: BLE001 - the cause is reported
         checks["qdrant_error"] = type(exc).__name__
     checks["bm25_chunks"] = len(resources.bm25) if resources.bm25 else 0
     checks["reranker_loaded"] = bool(resources.reranker and resources.reranker.loaded)

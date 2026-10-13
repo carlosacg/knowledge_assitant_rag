@@ -1,4 +1,4 @@
-"""Cliente LLM (OpenAI Chat Completions) con límite de concurrencia."""
+"""LLM client (OpenAI Chat Completions) with a concurrency limit."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ class OpenAIChatLLM:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        # Protege la cuota de la API (rate limits) bajo picos de tráfico.
+        # Protects the API quota (rate limits) during traffic spikes.
         self._semaphore = asyncio.Semaphore(max_concurrency)
 
     async def complete(self, system: str, user: str) -> str:

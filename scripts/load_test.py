@@ -1,6 +1,6 @@
-"""Prueba de carga concurrente contra POST /ask.
+"""Concurrent load test against POST /ask.
 
-Uso (desde el host o dentro de la red de compose):
+Usage (from the host or inside the compose network):
     python scripts/load_test.py --url http://localhost:8000 --concurrency 50 --requests 200
     docker compose run --rm api python scripts/load_test.py --url http://api:8000
 """

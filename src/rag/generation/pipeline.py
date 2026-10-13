@@ -1,4 +1,4 @@
-"""Pipeline RAG completo: hybrid search -> reranking -> contexto -> LLM -> citas."""
+"""Full RAG pipeline: hybrid search -> reranking -> context -> LLM -> citations."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class PipelineTimeoutError(Exception):
-    """Una etapa del pipeline excedió su presupuesto de tiempo."""
+    """A pipeline stage exceeded its time budget."""
 
     def __init__(self, stage: str, timeout_s: float) -> None:
         super().__init__(f"La etapa '{stage}' excedió {timeout_s}s")
@@ -55,7 +55,7 @@ class RAGPipeline:
 
     async def _rerank(self, question: str, candidates: list[ScoredChunk]) -> list[ScoredChunk]:
         texts = [c.chunk.embed_text for c in candidates]
-        # abandon_on_cancel: ante timeout, el request no espera al thread (que termina en segundo plano).
+        # abandon_on_cancel: on timeout, the request does not wait for the thread (it finishes in the background).
         scores = await anyio.to_thread.run_sync(
             self.reranker.score, question, texts, limiter=self.rerank_limiter, abandon_on_cancel=True
         )
@@ -72,7 +72,7 @@ class RAGPipeline:
         top_n: int | None = None,
         keep_all: bool = False,
     ) -> RetrievalOutcome:
-        """Top-K candidatos (hybrid/dense/bm25) y, en ``hybrid_rerank``, reordenados por el cross-encoder."""
+        """Top-K candidates (hybrid/dense/bm25) and, in ``hybrid_rerank``, reordered by the cross-encoder."""
         s = self.settings
         base_mode = "hybrid" if mode == "hybrid_rerank" else mode
         try:
@@ -92,7 +92,7 @@ class RAGPipeline:
                     reranked = True
                     debug["rerank"] = trace_ranking(candidates)
                 except TimeoutError:
-                    # Degradación controlada: se usa el orden RRF en lugar de fallar el request.
+                    # Graceful degradation: use the RRF order instead of failing the request.
                     debug["rerank_degraded"] = f"timeout > {s.rerank_timeout_s}s, se usa orden RRF"
                     logger.warning("reranker timeout; degradando a RRF")
 
@@ -120,7 +120,7 @@ class RAGPipeline:
 
         if not outcome.chunks:
             return abstain("sin_resultados")
-        # Umbral de relevancia: solo es fiable con scores calibrados del cross-encoder.
+        # Relevance threshold: only reliable with calibrated cross-encoder scores.
         if outcome.reranked and outcome.chunks[0].score < s.min_rerank_score:
             return abstain(f"relevancia_baja (top={outcome.chunks[0].score:.4f} < {s.min_rerank_score})")
 

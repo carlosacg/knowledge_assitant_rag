@@ -1,4 +1,4 @@
-"""Modelos de dominio compartidos por ingesta, recuperación y generación."""
+"""Domain models shared by ingestion, retrieval and generation."""
 
 from __future__ import annotations
 
@@ -26,8 +26,8 @@ class Document:
 @dataclass(frozen=True)
 class Chunk:
     chunk_id: str
-    text: str  # texto original que ve el LLM / usuario
-    embed_text: str  # breadcrumb + texto: lo que se vectoriza y se rerankea
+    text: str  # original text seen by the LLM / user
+    embed_text: str  # breadcrumb + text: what gets embedded and reranked
     metadata: dict[str, Any]
 
     @property
@@ -52,7 +52,7 @@ class Chunk:
 class ScoredChunk:
     chunk: Chunk
     score: float
-    scores: dict[str, float] = field(default_factory=dict)  # trazabilidad por etapa
+    scores: dict[str, float] = field(default_factory=dict)  # per-stage traceability
 
     @property
     def chunk_id(self) -> str:
@@ -62,7 +62,7 @@ class ScoredChunk:
 @dataclass(frozen=True)
 class SearchFilters:
     tech_stack: tuple[str, ...] | None = None  # match any
-    environment: str | None = None  # siempre incluye docs con environment="all"
+    environment: str | None = None  # always includes docs with environment="all"
     doc_type: str | None = None
 
     @classmethod

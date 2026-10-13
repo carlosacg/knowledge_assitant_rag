@@ -16,7 +16,7 @@ def test_rrf_rewards_agreement_between_rankers():
     bm25 = [_sc("d"), _sc("b"), _sc("c")]
     fused = reciprocal_rank_fusion({"dense": dense, "bm25": bm25}, k=60)
     ids = [f.chunk_id for f in fused]
-    assert ids[0] == "b"  # rank 2 en ambos (2/62) > rank 1 en uno solo (1/61)
+    assert ids[0] == "b"  # rank 2 in both (2/62) > rank 1 in only one (1/61)
     assert set(ids) == {"a", "b", "c", "d"}
     assert fused[0].score == pytest.approx(2 / 62)
     assert fused[0].scores["dense_rank"] == 2 and fused[0].scores["bm25_rank"] == 2

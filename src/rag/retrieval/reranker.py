@@ -1,7 +1,7 @@
-"""Reranking con Cross-Encoder (BAAI/bge-reranker-base).
+"""Cross-Encoder reranking (BAAI/bge-reranker-base).
 
-El modelo es CPU-bound y no async: se invoca desde un thread (ver ``RAGPipeline``) con un
-``CapacityLimiter`` dedicado para no saturar la CPU del worker.
+The model is CPU-bound and not async: it is called from a thread (see ``RAGPipeline``) with a
+dedicated ``CapacityLimiter`` so it does not saturate the worker's CPU.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ class CrossEncoderReranker:
                     if self.torch_threads:
                         torch.set_num_threads(self.torch_threads)
                     logger.info("cargando reranker", extra={"model": self.model_name})
-                    # num_labels=1 -> activación sigmoide por defecto: scores en [0, 1].
+                    # num_labels=1 -> sigmoid activation by default: scores in [0, 1].
                     self._model = CrossEncoder(self.model_name, max_length=self.max_length, device="cpu")
         return self._model
 

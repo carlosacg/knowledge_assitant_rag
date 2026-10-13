@@ -103,7 +103,7 @@ async def test_health_and_readiness(resources):
         assert (await client.get("/health")).json() == {"status": "ok", "checks": {}}
         ready = await client.get("/health/ready")
     assert ready.status_code == 200
-    assert ready.json()["status"] == "degraded"  # sin BM25 cargado
+    assert ready.json()["status"] == "degraded"  # no BM25 loaded
     resources.vector_store.points = 0
     async with build_client(resources) as client:
         assert (await client.get("/health/ready")).status_code == 503
@@ -120,7 +120,7 @@ async def test_lifespan_initializes_and_releases_resources(tmp_path, monkeypatch
         async with app.router.lifespan_context(app):
             res = app.state.resources
             assert res.pipeline is not None
-            assert res.bm25 is None  # sin ingesta todavía
+            assert res.bm25 is None  # no ingestion yet
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as client:
                 ready = await client.get("/health/ready")
             assert ready.status_code == 503

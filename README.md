@@ -1,133 +1,136 @@
 # Engineering Knowledge RAG
 
-Asistente para equipos de ingeniería que responde dudas técnicas sobre las arquitecturas internas, los stacks backend (Django, FastAPI, PostgreSQL) y la infraestructura cloud (AWS, GCP) de una empresa ficticia, **Nimbus Labs**. Cada respuesta cita los fragmentos de la documentación interna que la respaldan. Si la documentación no cubre la pregunta, el asistente responde que no cuenta con la información en lugar de inventarla.
+An assistant for engineering teams that answers technical questions about the internal architectures, backend stacks (Django, FastAPI, PostgreSQL) and cloud infrastructure (AWS, GCP) of a fictional company, **Nimbus Labs**. Every answer cites the fragments of internal documentation that support it. When the documentation doesn't cover a question, the assistant says it doesn't have the information instead of making something up.
 
-Implementación nativa, sin LangChain ni LlamaIndex en el pipeline, sobre:
-- **LLM y embeddings:** OpenAI (`text-embedding-3-small`, `gpt-4o-mini`).
+Native implementation, with no LangChain or LlamaIndex in the pipeline, built on:
+- **LLM and embeddings:** OpenAI (`text-embedding-3-small`, `gpt-4o-mini`).
 - **Vector store:** Qdrant.
-- **Búsqueda léxica:** BM25.
+- **Lexical search:** BM25.
 - **Reranker:** `BAAI/bge-reranker-base`.
-- **Evaluación:** Ragas.
+- **Evaluation:** Ragas.
 
-La API es FastAPI y está preparada para alta concurrencia. Todo corre en Docker.
+The API is FastAPI, built for high concurrency. Everything runs in Docker.
 
-## Arquitectura
+> **Language note:** the sample corpus in `docs/`, the golden set and the system prompt are in Spanish, so the example questions below are in Spanish too.
+
+## Architecture
 
 ```
 [docs/*.md] ─> [Chunking + Metadata] ─> [Embeddings] ─> [Qdrant] + [BM25]
                                                             │
-[Pregunta] ─> [Hybrid Search: dense ∥ BM25 ─> RRF, top-20] ─> [Cross-Encoder rerank, top-5]
+[Question] ─> [Hybrid Search: dense ∥ BM25 ─> RRF, top-20] ─> [Cross-Encoder rerank, top-5]
                                                             │
-                     [Context Construction (fuente + metadata visibles)]
+                     [Context Construction (source + visible metadata)]
                                                             │
-             [LLM con prompt anti-alucinación] ─> respuesta + citas [n]
+             [LLM with anti-hallucination prompt] ─> answer + [n] citations
                                                             │
-             [Evaluación: Hit/Recall/MRR/nDCG por modo · abstención · Ragas]
+             [Evaluation: Hit/Recall/MRR/nDCG per mode · abstention · Ragas]
 ```
 
-| Concepto | Implementación |
+| Concept | Implementation |
 |---|---|
-| Chunking | [chunker.py](src/rag/ingestion/chunker.py): se divide por encabezados (con breadcrumb). Los bloques de código son unidades atómicas y solo se cortan por líneas, cerrando y reabriendo el fence en cada parte. La prosa usa un splitter recursivo por tokens de 400, con 60 de solapamiento. |
-| Metadata | [metadata.py](src/rag/ingestion/metadata.py): `tech_stack`, `doc_type`, `environment`, `last_updated`, `filepath`, más `section`, `content_type` y `language` en cada chunk. |
-| Embeddings | [embeddings.py](src/rag/retrieval/embeddings.py): batches en paralelo y caché TTL para los embeddings de las consultas. |
-| Vector store | [vector_store.py](src/rag/retrieval/vector_store.py): Qdrant con distancia coseno e índices de payload para filtrar. |
-| Similarity search | Consulta densa coseno, top-K, con filtros por metadata. |
-| Hybrid search | [hybrid.py](src/rag/retrieval/hybrid.py): búsqueda densa y BM25 en paralelo, fusionadas con Reciprocal Rank Fusion. El tokenizer de [lexical.py](src/rag/retrieval/lexical.py) preserva identificadores como `PAYMENTS_DB_URL` o `/api/v1/payments/refunds`. |
-| Retrieval y reranking | [reranker.py](src/rag/retrieval/reranker.py) y [pipeline.py](src/rag/generation/pipeline.py): Top-K=20 pasa al cross-encoder, que deja Top-N=5. Si el mejor score queda bajo un umbral, el sistema se abstiene sin llamar al LLM. |
-| Context construction | [context_builder.py](src/rag/generation/context_builder.py): bloques `[n] Fuente: … § … \| stack \| tipo \| entorno \| actualizado`, con deduplicación y presupuesto de tokens. |
-| Anti-hallucination | [prompts.py](src/rag/generation/prompts.py): solo se usa el contexto, cada afirmación lleva cita `[n]`, la abstención usa un texto literal, y los conflictos se resuelven por fecha y entorno. |
-| Retrieval evaluation | [evaluation/](src/rag/evaluation/): Hit@5, Recall@5/20, Precision@5, MRR y nDCG@5 por modo; tasa de abstención; y Ragas (Context Precision, Context Recall, Faithfulness, Answer Relevancy). |
+| Chunking | [chunker.py](src/rag/ingestion/chunker.py): splits by headings (with a breadcrumb). Code blocks are atomic units and are only split at line boundaries, closing and reopening the fence in each part. Prose uses a recursive token splitter of 400 tokens with 60 tokens of overlap. |
+| Metadata | [metadata.py](src/rag/ingestion/metadata.py): `tech_stack`, `doc_type`, `environment`, `last_updated`, `filepath`, plus `section`, `content_type` and `language` on each chunk. |
+| Embeddings | [embeddings.py](src/rag/retrieval/embeddings.py): parallel batches and a TTL cache for query embeddings. |
+| Vector store | [vector_store.py](src/rag/retrieval/vector_store.py): Qdrant with cosine distance and payload indexes for filtering. |
+| Similarity search | Dense cosine query, top-K, with metadata filters. |
+| Hybrid search | [hybrid.py](src/rag/retrieval/hybrid.py): dense and BM25 search run in parallel and are merged with Reciprocal Rank Fusion. The tokenizer in [lexical.py](src/rag/retrieval/lexical.py) keeps identifiers such as `PAYMENTS_DB_URL` or `/api/v1/payments/refunds` intact. |
+| Retrieval and reranking | [reranker.py](src/rag/retrieval/reranker.py) and [pipeline.py](src/rag/generation/pipeline.py): the top-K=20 candidates go to the cross-encoder, which keeps the top-N=5. If the best score falls below a threshold, the system abstains without calling the LLM. |
+| Context construction | [context_builder.py](src/rag/generation/context_builder.py): `[n] Fuente: … § … \| stack \| tipo \| entorno \| actualizado` blocks, with deduplication and a token budget. |
+| Anti-hallucination | [prompts.py](src/rag/generation/prompts.py): only the context may be used, every claim carries an `[n]` citation, abstention uses a fixed message, and conflicts are resolved by date and environment. |
+| Retrieval evaluation | [evaluation/](src/rag/evaluation/): Hit@5, Recall@5/20, Precision@5, MRR and nDCG@5 per mode; abstention rate; and Ragas (Context Precision, Context Recall, Faithfulness, Answer Relevancy). |
 
-## Inicio rápido (Docker)
+## Quick start (Docker)
 
 ```bash
-cp .env.example .env          # completar OPENAI_API_KEY
+cp .env.example .env          # set OPENAI_API_KEY
 docker compose build
 docker compose up -d qdrant
-docker compose run --rm ingest                 # indexa docs/ en Qdrant + BM25
-docker compose up -d api                       # API en http://localhost:8000 (docs en /docs)
+docker compose run --rm ingest                 # index docs/ into Qdrant + BM25
+docker compose up -d api                       # API at http://localhost:8000 (docs at /docs)
 ```
 
-Con `make` puedes hacer lo mismo de forma abreviada; `make help` lista todos los comandos:
+`make` offers shortcuts for the same steps; `make help` lists every target:
 
 ```bash
-make env && make build && make up              # .env, imagen, Qdrant + ingesta + API
+make env && make build && make up              # .env, image, Qdrant + ingestion + API
 make ask Q="¿Cuánto vale PAYMENTS_DB_POOL_SIZE?" ARGS="--env staging"
 make test | make eval | make eval-fast | make load-test | make down
 ```
 
-### Consultas
+### Queries
 
 ```bash
 # CLI
 docker compose run --rm api python main.py ask "¿De dónde obtiene payments-service PAYMENTS_DB_URL en producción?" --debug
 docker compose run --rm api python main.py ask "¿Cuánto vale PAYMENTS_DB_POOL_SIZE?" --env staging
-docker compose run --rm api python main.py ask "¿Cómo se configura Redis?"      # -> abstención
+docker compose run --rm api python main.py ask "¿Cómo se configura Redis?"      # -> abstention
 
 # API
 curl -X POST http://localhost:8000/ask -H "Content-Type: application/json" \
   -d '{"question": "¿Qué scope requiere POST /api/v1/payments/refunds?", "filters": {"tech_stack": ["fastapi"]}, "debug": true}'
 ```
 
-`mode` puede tomar los valores `dense`, `bm25`, `hybrid` o `hybrid_rerank` (por defecto). Los filtros disponibles son `tech_stack` (coincide si comparte al menos un valor), `environment` (siempre incluye los documentos marcados `all`) y `doc_type`.
+`mode` accepts `dense`, `bm25`, `hybrid` or `hybrid_rerank` (the default). The available filters are `tech_stack` (matches if at least one value is shared), `environment` (always includes documents marked `all`) and `doc_type`.
 
-### Tests, evaluación y carga
+### Tests, evaluation and load
 
 ```bash
-docker compose run --rm tests                  # pytest, sin red ni API keys
-docker compose run --rm eval                   # compara modos + Ragas -> data/eval/results_*.json
+docker compose run --rm --no-deps tests        # pytest, no network or API keys needed
+docker compose run --rm eval                   # compare modes + Ragas -> data/eval/results_*.json
 docker compose run --rm api python scripts/load_test.py --url http://api:8000 --concurrency 50 --requests 200
 ```
 
-El notebook [notebooks/evaluation.ipynb](notebooks/evaluation.ipynb) grafica `data/eval/latest_results.json`.
+The [notebooks/evaluation.ipynb](notebooks/evaluation.ipynb) notebook plots `data/eval/latest_results.json`.
 
-## API y concurrencia
+## API and concurrency
 
-| Endpoint | Descripción |
+| Endpoint | Description |
 |---|---|
 | `POST /ask` | `{question, filters?, mode?, debug?}` → `{answer, abstained, citations[], latency_ms, request_id, debug?}` |
-| `GET /health` | Liveness: comprueba que el proceso responde, sin consultar dependencias externas. |
-| `GET /health/ready` | Readiness: comprueba los puntos indexados en Qdrant, el índice BM25 y el reranker. Devuelve `ok`, `degraded` o `503`. |
+| `GET /health` | Liveness: checks that the process responds, without touching external dependencies. |
+| `GET /health/ready` | Readiness: checks the points indexed in Qdrant, the BM25 index and the reranker. Returns `ok`, `degraded` or `503`. |
 
-Diseño de la API:
-- **[lifespan.py](src/rag/api/lifespan.py)** inicializa los recursos una vez por worker, a través de [resources.py](src/rag/resources.py):
-  - `AsyncOpenAI` sobre un `httpx.AsyncClient` con pool de conexiones.
+API design:
+- **[lifespan.py](src/rag/api/lifespan.py)** initializes resources once per worker, through [resources.py](src/rag/resources.py):
+  - `AsyncOpenAI` on top of an `httpx.AsyncClient` with a connection pool.
   - `AsyncQdrantClient`.
-  - El índice BM25 en memoria, de solo lectura.
-  - El cross-encoder, precalentado con una inferencia de prueba.
-  - Los limitadores de concurrencia.
+  - The in-memory, read-only BM25 index.
+  - The cross-encoder, warmed up with a dummy inference.
+  - The concurrency limiters.
 
-  Al apagar, cierra todo de forma ordenada con `AsyncExitStack`.
-- **[depends.py](src/rag/api/depends.py)** expone esos recursos mediante `Depends`, sin crear objetos por request, así que se pueden reemplazar con `dependency_overrides`. Incluye `concurrency_guard`, que aplica backpressure: con más de `MAX_IN_FLIGHT_REQUESTS` solicitudes en curso responde **503 con `Retry-After`** en vez de encolar sin límite.
-- **Event loop sin bloqueos:**
-  - Todo el I/O es async.
-  - BM25 y el reranker (CPU-bound) corren en threads con `CapacityLimiter`.
-  - Las llamadas al LLM se limitan con un semáforo para respetar los rate limits.
-- **Timeouts por etapa.** Si el reranker se excede, el sistema usa el orden RRF y lo indica en `debug`. Si se excede el retrieval o el LLM, la respuesta es **504** con el cuerpo de error estándar.
-- **Middleware ASGI puro** para `X-Request-ID`, `X-Process-Time-ms` y el log de acceso en JSON.
-- **Servidor:** gunicorn con workers `uvicorn_worker.UvicornWorker`. Se configura con `WEB_CONCURRENCY` (por defecto 2, porque cada worker carga el reranker de ~1 GB), `max_requests` para reciclar workers y un graceful timeout. Ver [gunicorn.conf.py](gunicorn.conf.py).
+  On shutdown, it closes everything in order with `AsyncExitStack`.
+- **[depends.py](src/rag/api/depends.py)** exposes those resources through `Depends` without creating objects per request, so they can be swapped with `dependency_overrides`. It includes `concurrency_guard`, which applies backpressure: with more than `MAX_IN_FLIGHT_REQUESTS` requests in flight it returns **503 with `Retry-After`** instead of queuing without limit.
+- **Non-blocking event loop:**
+  - All I/O is async.
+  - BM25 and the reranker (CPU-bound) run in threads behind a `CapacityLimiter`.
+  - LLM calls are bounded by a semaphore to respect rate limits.
+- **Per-stage timeouts.** If the reranker exceeds its budget, the system falls back to the RRF order and flags it in `debug`. If retrieval or the LLM times out, the response is a **504** with the standard error body.
+- **Pure ASGI middleware** for `X-Request-ID`, `X-Process-Time-ms` and the JSON access log.
+- **Server:** gunicorn with `uvicorn_worker.UvicornWorker` workers. Configured through `WEB_CONCURRENCY` (2 by default, since each worker loads the ~1 GB reranker), `max_requests` to recycle workers, and a graceful timeout. See [gunicorn.conf.py](gunicorn.conf.py).
 
-## Estructura
+## Layout
 
 ```
-docs/                  13 guías Markdown ficticias (arquitectura, Django/FastAPI, PostgreSQL, AWS/GCP, runbooks)
-data/eval/             golden_set.jsonl (28 preguntas, 4 sin respuesta posible) y resultados
+docs/                  13 fictional Markdown guides (architecture, Django/FastAPI, PostgreSQL, AWS/GCP, runbooks)
+data/eval/             golden_set.jsonl (28 questions, 4 unanswerable) and results
 src/rag/
   ingestion/           loader, metadata, chunker, indexer
   retrieval/           embeddings, vector_store, lexical (BM25), hybrid (RRF), reranker
   generation/          prompts, context_builder, llm, pipeline
   evaluation/          golden_set, retrieval_metrics, ragas_eval, run_eval
   api/                 app, lifespan, depends, middleware, schemas, routers/
-  resources.py         composition root compartido por API, CLI y evaluación
-tests/                 unitarios + API + concurrencia (fakes deterministas, Qdrant en memoria)
-scripts/load_test.py   prueba de carga async
+  resources.py         composition root shared by the API, CLI and evaluation
+tests/                 unit + API + concurrency tests (deterministic fakes, in-memory Qdrant)
+scripts/load_test.py   async load test
 main.py                CLI: ingest | ask | eval | serve
+Makefile               shortcuts over docker compose
 ```
 
-## Configuración
+## Configuration
 
-Todas las opciones están en [config.py](src/rag/config.py) y se sobreescriben con variables de entorno (ver [.env.example](.env.example)). Las principales son:
-- **Recuperación:** `TOP_K`, `TOP_N`, `MIN_RERANK_SCORE`.
+All options live in [config.py](src/rag/config.py) and can be overridden with environment variables (see [.env.example](.env.example)). The main ones are:
+- **Retrieval:** `TOP_K`, `TOP_N`, `MIN_RERANK_SCORE`.
 - **Chunking:** `CHUNK_SIZE_TOKENS`, `CHUNK_OVERLAP_TOKENS`.
-- **Concurrencia:** `MAX_IN_FLIGHT_REQUESTS`, `LLM_CONCURRENCY`, `RERANK_CONCURRENCY`, `TORCH_THREADS`.
+- **Concurrency:** `MAX_IN_FLIGHT_REQUESTS`, `LLM_CONCURRENCY`, `RERANK_CONCURRENCY`, `TORCH_THREADS`.
 - **Timeouts:** `RETRIEVAL_TIMEOUT_S`, `RERANK_TIMEOUT_S`, `LLM_TIMEOUT_S`.

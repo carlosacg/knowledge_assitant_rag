@@ -10,12 +10,12 @@ ENV PIP_NO_CACHE_DIR=1 \
 RUN python -m venv /opt/venv
 
 WORKDIR /build
-# torch CPU primero (desde el índice de PyTorch): evita ~2 GB de dependencias CUDA.
+# CPU torch first (from the PyTorch index): avoids ~2 GB of CUDA dependencies.
 RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.5.1"
 COPY requirements.txt requirements-dev.txt ./
 RUN pip install -r requirements.txt -r requirements-dev.txt
 
-# Pre-descarga de artefactos de modelos: el contenedor arranca sin depender de la red.
+# Pre-download model artifacts: the container starts without depending on the network.
 ENV HF_HOME=/models/hf \
     TIKTOKEN_CACHE_DIR=/models/tiktoken
 ARG RERANKER_MODEL=BAAI/bge-reranker-base

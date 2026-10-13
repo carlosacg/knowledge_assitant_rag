@@ -1,4 +1,4 @@
-"""Configuración centralizada (variables de entorno / .env)."""
+"""Centralized configuration (environment variables / .env)."""
 
 from __future__ import annotations
 
@@ -27,12 +27,12 @@ class Settings(BaseSettings):
     openai_max_retries: int = 2
 
     # --- Qdrant ---
-    qdrant_url: str = "http://localhost:6333"  # ":memory:" = modo embebido (tests)
+    qdrant_url: str = "http://localhost:6333"  # ":memory:" = embedded mode (tests)
     qdrant_api_key: SecretStr | None = None
     qdrant_collection: str = "engineering_docs"
     qdrant_timeout_s: int = 10
 
-    # --- Rutas ---
+    # --- Paths ---
     docs_dir: Path = PROJECT_ROOT / "docs"
     data_dir: Path = PROJECT_ROOT / "data"
 
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     max_code_tokens: int = 600
     code_intro_max_tokens: int = 80
 
-    # --- Recuperación ---
+    # --- Retrieval ---
     top_k: int = 20
     top_n: int = 5
     rrf_k: int = 60
@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     min_rerank_score: float = 0.02
     context_max_tokens: int = 3000
 
-    # --- Concurrencia y timeouts (por worker) ---
+    # --- Concurrency and timeouts (per worker) ---
     max_in_flight_requests: int = 64
     llm_concurrency: int = 32
     rerank_concurrency: int = 2

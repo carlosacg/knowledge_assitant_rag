@@ -1,4 +1,4 @@
-"""Construcción estructurada del contexto: fragmentos numerados con metadatos visibles."""
+"""Structured context building: numbered chunks with visible metadata."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _CITATION_RE = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
 @dataclass(frozen=True)
 class BuiltContext:
     text: str
-    used: list[ScoredChunk]  # used[i] corresponde a la cita [i + 1]
+    used: list[ScoredChunk]  # used[i] maps to citation [i + 1]
     tokens: int
 
 
@@ -32,10 +32,10 @@ def format_header(index: int, item: ScoredChunk) -> str:
 
 
 def build_context(chunks: Sequence[ScoredChunk], max_tokens: int = 3000) -> BuiltContext:
-    """Ensambla el contexto respetando el orden de relevancia y un presupuesto de tokens.
+    """Assembles the context respecting relevance order and a token budget.
 
-    Se descartan duplicados (mismo chunk o mismo texto). El primer fragmento siempre entra,
-    aunque exceda el presupuesto, para no dejar al LLM sin evidencia.
+    Duplicates (same chunk or same text) are dropped. The first chunk is always included,
+    even if it exceeds the budget, so the LLM is never left without evidence.
     """
     blocks: list[str] = []
     used: list[ScoredChunk] = []
@@ -48,7 +48,7 @@ def build_context(chunks: Sequence[ScoredChunk], max_tokens: int = 3000) -> Buil
         block = f"{format_header(len(used) + 1, item)}\n{item.chunk.text}"
         n = count_tokens(block)
         if used and total + n > max_tokens:
-            continue  # puede entrar un fragmento posterior más corto
+            continue  # a later, shorter chunk may still fit
         seen.update({item.chunk_id, key})
         blocks.append(block)
         used.append(item)
@@ -57,7 +57,7 @@ def build_context(chunks: Sequence[ScoredChunk], max_tokens: int = 3000) -> Buil
 
 
 def extract_citations(answer: str, used: Sequence[ScoredChunk]) -> list[Citation]:
-    """Devuelve las fuentes efectivamente citadas ([n]) en orden de primera aparición."""
+    """Returns the sources actually cited ([n]) in order of first appearance."""
     citations: list[Citation] = []
     seen: set[int] = set()
     for match in _CITATION_RE.finditer(answer):
