@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from rag.generation.context_builder import build_context, extract_citations, format_header
-from rag.generation.prompts import ABSTENTION_MESSAGE, SYSTEM_PROMPT, build_user_prompt, is_abstention
+from rag.generation.prompts import ABSTENTION_MESSAGE, SYSTEM_PROMPT, build_prompt, is_abstention
 from rag.models import Chunk, ScoredChunk
 
 
@@ -51,7 +51,10 @@ def test_extract_citations():
 def test_prompts_contain_faithfulness_rules():
     assert ABSTENTION_MESSAGE in SYSTEM_PROMPT
     assert "ÚNICAMENTE" in SYSTEM_PROMPT
-    prompt = build_user_prompt("  ¿pregunta?  ", "CTX")
-    assert "<contexto>\nCTX\n</contexto>" in prompt and "Pregunta: ¿pregunta?" in prompt
+    # Braces inside the context (code/JSON) are values, not template variables.
+    system, human = build_prompt().format_messages(question="¿pregunta?", context='CTX {"a": 1}')
+    assert system.type == "system" and system.content == SYSTEM_PROMPT
+    assert '<contexto>\nCTX {"a": 1}\n</contexto>' in human.content
+    assert "Pregunta: ¿pregunta?" in human.content
     assert is_abstention("No cuento con informacion suficiente en la documentación interna.")
     assert not is_abstention("PAYMENTS_DB_URL viene de Secrets Manager [1].")

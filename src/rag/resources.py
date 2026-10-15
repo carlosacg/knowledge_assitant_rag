@@ -14,11 +14,11 @@ from dataclasses import dataclass
 import anyio
 from cachetools import TTLCache
 
-from rag.clients import create_http_client, create_openai_client, create_qdrant_client
+from rag.clients import create_chat_model, create_embeddings, create_http_client, create_qdrant_client
 from rag.config import Settings
-from rag.generation.llm import OpenAIChatLLM
+from rag.generation.llm import AnswerGenerator
 from rag.generation.pipeline import RAGPipeline
-from rag.retrieval.embeddings import OpenAIEmbedder
+from rag.retrieval.embeddings import CachedQueryEmbeddings
 from rag.retrieval.hybrid import HybridRetriever
 from rag.retrieval.lexical import BM25Index
 from rag.retrieval.reranker import CrossEncoderReranker
@@ -74,19 +74,20 @@ async def open_resources(settings: Settings, *, load_reranker: bool | None = Non
     async with AsyncExitStack() as stack:
         http_client = create_http_client(settings)
         stack.push_async_callback(http_client.aclose)
-        openai_client = create_openai_client(settings, http_client)
-        stack.push_async_callback(openai_client.close)
         qdrant = create_qdrant_client(settings)
-        stack.push_async_callback(qdrant.close)
+        stack.callback(qdrant.close)
 
-        embedder = OpenAIEmbedder(
-            openai_client,
-            settings.embedding_model,
-            settings.embedding_dim,
-            batch_size=settings.embedding_batch_size,
-            query_cache=TTLCache(maxsize=settings.embedding_cache_size, ttl=settings.embedding_cache_ttl_s),
+        embeddings = CachedQueryEmbeddings(
+            create_embeddings(settings, http_client),
+            TTLCache(maxsize=settings.embedding_cache_size, ttl=settings.embedding_cache_ttl_s),
         )
-        vector_store = QdrantVectorStore(qdrant, settings.qdrant_collection, settings.embedding_dim)
+        vector_store = QdrantVectorStore(
+            qdrant,
+            settings.qdrant_collection,
+            embeddings,
+            settings.embedding_dim,
+            limiter=anyio.CapacityLimiter(settings.qdrant_concurrency),
+        )
         bm25 = await anyio.to_thread.run_sync(load_bm25, settings)
 
         reranker: CrossEncoderReranker | None = None
@@ -101,22 +102,18 @@ async def open_resources(settings: Settings, *, load_reranker: bool | None = Non
             await anyio.to_thread.run_sync(reranker.warmup)
 
         retriever = HybridRetriever(
-            embedder,
             vector_store,
             bm25,
             cpu_limiter=anyio.CapacityLimiter(settings.cpu_concurrency),
             rrf_k=settings.rrf_k,
         )
-        llm = OpenAIChatLLM(
-            openai_client,
-            settings.llm_model,
-            temperature=settings.llm_temperature,
-            max_tokens=settings.llm_max_tokens,
+        generator = AnswerGenerator(
+            create_chat_model(settings, http_client),
             max_concurrency=settings.llm_concurrency,
         )
         pipeline = RAGPipeline(
             retriever,
-            llm,
+            generator,
             settings,
             reranker=reranker,
             rerank_limiter=anyio.CapacityLimiter(settings.rerank_concurrency),

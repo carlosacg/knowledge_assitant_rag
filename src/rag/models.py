@@ -6,6 +6,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from langchain_core.documents import Document as LCDocument
+
 RetrievalMode = Literal["dense", "bm25", "hybrid", "hybrid_rerank"]
 RETRIEVAL_MODES: tuple[str, ...] = ("dense", "bm25", "hybrid", "hybrid_rerank")
 
@@ -44,6 +46,25 @@ class Chunk:
             chunk_id=data.pop("chunk_id"),
             text=data.pop("text"),
             embed_text=data.pop("embed_text", ""),
+            metadata=data,
+        )
+
+    def to_document(self) -> LCDocument:
+        """LangChain boundary: ``page_content`` is what gets embedded (breadcrumb + text)."""
+        return LCDocument(
+            page_content=self.embed_text,
+            metadata={"chunk_id": self.chunk_id, "text": self.text, **self.metadata},
+            id=self.point_id,
+        )
+
+    @classmethod
+    def from_document(cls, doc: LCDocument) -> Chunk:
+        # langchain-qdrant injects "_id" and "_collection_name" into the metadata on reads.
+        data = {k: v for k, v in doc.metadata.items() if not k.startswith("_")}
+        return cls(
+            chunk_id=data.pop("chunk_id"),
+            text=data.pop("text"),
+            embed_text=doc.page_content,
             metadata=data,
         )
 

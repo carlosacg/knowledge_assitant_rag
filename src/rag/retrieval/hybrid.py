@@ -11,7 +11,6 @@ from typing import Any
 import anyio
 
 from rag.models import ScoredChunk, SearchFilters
-from rag.retrieval.embeddings import Embedder
 from rag.retrieval.lexical import BM25Index
 from rag.retrieval.vector_store import QdrantVectorStore
 
@@ -42,21 +41,18 @@ class RetrievalResult:
 class HybridRetriever:
     def __init__(
         self,
-        embedder: Embedder,
         vector_store: QdrantVectorStore,
         bm25: BM25Index | None,
         cpu_limiter: anyio.CapacityLimiter | None = None,
         rrf_k: int = 60,
     ) -> None:
-        self.embedder = embedder
         self.vector_store = vector_store
         self.bm25 = bm25
         self.cpu_limiter = cpu_limiter
         self.rrf_k = rrf_k
 
     async def dense_search(self, query: str, top_k: int, filters: SearchFilters | None) -> list[ScoredChunk]:
-        vector = await self.embedder.embed_query(query)
-        return await self.vector_store.search(vector, top_k, filters)
+        return await self.vector_store.search(query, top_k, filters)
 
     async def lexical_search(self, query: str, top_k: int, filters: SearchFilters | None) -> list[ScoredChunk]:
         if self.bm25 is None:

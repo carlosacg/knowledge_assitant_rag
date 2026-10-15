@@ -12,8 +12,8 @@ import anyio
 
 from rag.config import Settings
 from rag.generation.context_builder import build_context, extract_citations
-from rag.generation.llm import LLMClient
-from rag.generation.prompts import ABSTENTION_MESSAGE, SYSTEM_PROMPT, build_user_prompt, is_abstention
+from rag.generation.llm import AnswerGenerator
+from rag.generation.prompts import ABSTENTION_MESSAGE, is_abstention
 from rag.models import Answer, ScoredChunk, SearchFilters
 from rag.retrieval.hybrid import HybridRetriever, trace_ranking
 from rag.retrieval.reranker import Reranker
@@ -40,13 +40,13 @@ class RAGPipeline:
     def __init__(
         self,
         retriever: HybridRetriever,
-        llm: LLMClient,
+        generator: AnswerGenerator,
         settings: Settings,
         reranker: Reranker | None = None,
         rerank_limiter: anyio.CapacityLimiter | None = None,
     ) -> None:
         self.retriever = retriever
-        self.llm = llm
+        self.generator = generator
         self.settings = settings
         self.reranker = reranker
         self.rerank_limiter = rerank_limiter
@@ -129,7 +129,7 @@ class RAGPipeline:
         llm_started = time.perf_counter()
         try:
             async with asyncio.timeout(s.llm_timeout_s):
-                text = await self.llm.complete(SYSTEM_PROMPT, build_user_prompt(question, context.text))
+                text = await self.generator.agenerate(question, context.text)
         except TimeoutError as exc:
             raise PipelineTimeoutError("llm", s.llm_timeout_s) from exc
         timings.update(llm_ms=_ms(llm_started), total_ms=_ms(started))

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import unicodedata
 
+from langchain_core.prompts import ChatPromptTemplate
+
 ABSTENTION_MESSAGE = "No cuento con información suficiente en la documentación interna para responder esto."
 
 SYSTEM_PROMPT = f"""Eres el asistente técnico interno de Nimbus Labs para equipos de ingeniería \
@@ -35,8 +37,13 @@ Pregunta: {question}
 Responde siguiendo las reglas, citando las fuentes con [n]."""
 
 
-def build_user_prompt(question: str, context: str) -> str:
-    return USER_TEMPLATE.format(context=context, question=question.strip())
+def build_prompt() -> ChatPromptTemplate:
+    """Chat prompt with the template variables ``{context}`` and ``{question}``.
+
+    SYSTEM_PROMPT has no braces, so it is safe to use as a template as-is; braces inside the
+    injected context (code, JSON) are values, not template syntax.
+    """
+    return ChatPromptTemplate.from_messages([("system", SYSTEM_PROMPT), ("human", USER_TEMPLATE)])
 
 
 def _normalize(text: str) -> str:

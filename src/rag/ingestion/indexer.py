@@ -1,4 +1,4 @@
-"""Ingestion orchestration: load -> chunk -> embed -> upsert (Qdrant) + BM25 index."""
+"""Ingestion orchestration: load -> chunk -> embed + upsert (LangChain/Qdrant) + BM25 index."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from rag.config import Settings
 from rag.ingestion.chunker import MarkdownChunker
 from rag.ingestion.loader import load_documents
 from rag.models import Chunk
-from rag.retrieval.embeddings import Embedder
 from rag.retrieval.lexical import BM25Index
 from rag.retrieval.vector_store import QdrantVectorStore
 
@@ -40,7 +39,6 @@ def chunk_corpus(settings: Settings, docs_dir: Path | None = None) -> tuple[int,
 
 async def run_ingestion(
     settings: Settings,
-    embedder: Embedder,
     vector_store: QdrantVectorStore,
     *,
     rebuild: bool = True,
@@ -49,9 +47,8 @@ async def run_ingestion(
     if not chunks:
         raise RuntimeError(f"No se generaron chunks a partir de {settings.docs_dir}")
 
-    vectors = await embedder.embed_documents([c.embed_text for c in chunks])
     await vector_store.ensure_collection(recreate=rebuild)
-    await vector_store.upsert(chunks, vectors)
+    await vector_store.add_chunks(chunks, batch_size=settings.embedding_batch_size)
 
     BM25Index.build(chunks).save(settings.bm25_path)
 

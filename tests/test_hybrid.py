@@ -29,9 +29,20 @@ def test_rrf_top_k():
 def test_qdrant_filter_includes_environment_all():
     flt = build_qdrant_filter(SearchFilters.build(["AWS"], "staging", None))
     conditions = {c.key: c.match for c in flt.must}
-    assert conditions["tech_stack"].any == ["aws"]
-    assert set(conditions["environment"].any) == {"staging", "all"}
+    # langchain-qdrant nests the metadata under the "metadata" payload key.
+    assert conditions["metadata.tech_stack"].any == ["aws"]
+    assert set(conditions["metadata.environment"].any) == {"staging", "all"}
     assert build_qdrant_filter(None) is None
+
+
+def test_chunk_document_roundtrip():
+    chunk = Chunk("abc", "texto", "Doc > Sec\n\ntexto", {"filepath": "docs/x.md", "tech_stack": ["aws"]})
+    doc = chunk.to_document()
+    assert doc.page_content == chunk.embed_text  # what LangChain embeds
+    assert doc.id == chunk.point_id
+    # langchain-qdrant adds private keys on reads; they must not leak into the domain metadata.
+    doc.metadata.update({"_id": chunk.point_id, "_collection_name": "c"})
+    assert Chunk.from_document(doc) == chunk
 
 
 async def test_hybrid_retrieves_exact_identifier(retriever):

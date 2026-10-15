@@ -34,26 +34,22 @@ def ingest(
     rebuild: Annotated[bool, typer.Option("--rebuild/--no-rebuild", help="Recreate the collection")] = True,
 ) -> None:
     """Chunking + metadata + embeddings -> Qdrant, and BM25 index build."""
-    from rag.clients import create_openai_client, create_qdrant_client
+    from rag.clients import create_embeddings, create_qdrant_client
     from rag.ingestion.indexer import run_ingestion
-    from rag.retrieval.embeddings import OpenAIEmbedder
     from rag.retrieval.vector_store import QdrantVectorStore
 
     settings = get_settings()
     configure_logging(settings.log_level, json_output=False)
 
     async def _run():
-        openai_client = create_openai_client(settings)
         qdrant = create_qdrant_client(settings)
         try:
-            embedder = OpenAIEmbedder(
-                openai_client, settings.embedding_model, settings.embedding_dim, settings.embedding_batch_size
+            store = QdrantVectorStore(
+                qdrant, settings.qdrant_collection, create_embeddings(settings), settings.embedding_dim
             )
-            store = QdrantVectorStore(qdrant, settings.qdrant_collection, settings.embedding_dim)
-            return await run_ingestion(settings, embedder, store, rebuild=rebuild)
+            return await run_ingestion(settings, store, rebuild=rebuild)
         finally:
-            await qdrant.close()
-            await openai_client.close()
+            qdrant.close()
 
     stats = asyncio.run(_run())
     table = Table(title=f"Ingesta: {stats.documents} documentos -> {stats.chunks} chunks")

@@ -1,3 +1,11 @@
+# --- LangChain (LLM chain, embeddings, vector store) ---
+# Pinned to 0.3: ragas 0.2.x imports langchain-community 0.3 modules that were removed in LangChain 1.x
+langchain>=0.3,<0.4
+langchain-core>=0.3,<0.4
+langchain-community>=0.3,<0.4
+langchain-openai>=0.2,<0.4
+langchain-qdrant>=0.2,<0.3
+
 # --- LLM / embeddings ---
 openai>=1.68,<2
 tiktoken>=0.8
@@ -31,10 +39,5 @@ rich>=13.7
 
 # --- Evaluation ---
 ragas>=0.2.10,<0.3
-# ragas 0.2.x imports langchain-community 0.3 modules that were removed in LangChain 1.x
-langchain>=0.3,<0.4
-langchain-core>=0.3,<0.4
-langchain-community>=0.3,<0.4
-langchain-openai>=0.2,<0.4
 datasets>=2.20
 pandas>=2.2

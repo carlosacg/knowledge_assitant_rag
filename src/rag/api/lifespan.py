@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Startup: pooled async clients (OpenAI/Qdrant), BM25, pre-warmed reranker and limiters.
+    """Startup: LangChain OpenAI models on a pooled httpx client, Qdrant vector store, BM25,
+    pre-warmed reranker and limiters.
 
     Everything lives in ``app.state.resources`` and is shared across the worker's requests;
     ``depends.py`` exposes it to the endpoints. Shutdown: orderly connection close (AsyncExitStack).

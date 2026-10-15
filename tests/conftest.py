@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import math
 from pathlib import Path
 from typing import Any
 
 import pytest
-from qdrant_client import AsyncQdrantClient
+from langchain_core.embeddings import Embeddings
+from langchain_core.language_models.fake_chat_models import FakeListChatModel
+from pydantic import Field
+from qdrant_client import QdrantClient
 
 from rag.config import Settings
 from rag.ingestion.chunker import MarkdownChunker
@@ -25,10 +27,8 @@ def word_count(text: str) -> int:
     return len(text.split())
 
 
-class FakeEmbedder:
-    """Hashed, normalized bag-of-words: texts with shared vocabulary end up close together."""
-
-    dim = FAKE_DIM
+class FakeEmbedder(Embeddings):
+    """LangChain ``Embeddings`` with a hashed, normalized bag-of-words: shared vocabulary -> close vectors."""
 
     def _vector(self, text: str) -> list[float]:
         vec = [0.0] * FAKE_DIM
@@ -37,10 +37,10 @@ class FakeEmbedder:
         norm = math.sqrt(sum(v * v for v in vec)) or 1.0
         return [v / norm for v in vec]
 
-    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return [self._vector(t) for t in texts]
 
-    async def embed_query(self, text: str) -> list[float]:
+    def embed_query(self, text: str) -> list[float]:
         return self._vector(text)
 
 
@@ -65,17 +65,19 @@ class SlowReranker(FakeReranker):
         return super().score(query, texts)
 
 
-class FakeLLM:
-    def __init__(self, response: str = "La variable se obtiene de Secrets Manager [1].", delay_s: float = 0.0):
-        self.response = response
-        self.delay_s = delay_s
-        self.calls: list[dict[str, str]] = []
+class FakeLLM(FakeListChatModel):
+    """LangChain fake chat model that always returns ``response`` and records the prompts it receives."""
 
-    async def complete(self, system: str, user: str) -> str:
-        self.calls.append({"system": system, "user": user})
-        if self.delay_s:
-            await asyncio.sleep(self.delay_s)
-        return self.response
+    calls: list[dict[str, str]] = Field(default_factory=list)
+
+    def __init__(
+        self, response: str = "La variable se obtiene de Secrets Manager [1].", delay_s: float = 0.0, **kwargs: Any
+    ) -> None:
+        super().__init__(responses=[response], sleep=delay_s or None, **kwargs)
+
+    def _call(self, messages, stop=None, run_manager=None, **kwargs: Any) -> str:
+        self.calls.append({"system": messages[0].content, "user": messages[-1].content})
+        return super()._call(messages, stop, run_manager, **kwargs)
 
 
 def make_settings(tmp_path: Path, **overrides: Any) -> Settings:
@@ -167,10 +169,9 @@ def sample_chunks() -> list[Chunk]:
 
 @pytest.fixture
 async def retriever(sample_chunks: list[Chunk]) -> HybridRetriever:
-    client = AsyncQdrantClient(location=":memory:")
-    store = QdrantVectorStore(client, "test_docs", FAKE_DIM)
-    embedder = FakeEmbedder()
+    client = QdrantClient(location=":memory:")
+    store = QdrantVectorStore(client, "test_docs", FakeEmbedder(), FAKE_DIM)
     await store.ensure_collection(recreate=True)
-    await store.upsert(sample_chunks, await embedder.embed_documents([c.embed_text for c in sample_chunks]))
-    yield HybridRetriever(embedder, store, BM25Index.build(sample_chunks))
-    await client.close()
+    await store.add_chunks(sample_chunks)
+    yield HybridRetriever(store, BM25Index.build(sample_chunks))
+    client.close()

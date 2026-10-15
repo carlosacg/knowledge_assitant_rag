@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     llm_concurrency: int = 32
     rerank_concurrency: int = 2
     cpu_concurrency: int = 8
+    qdrant_concurrency: int = 16  # threads for Qdrant calls (langchain-qdrant is sync)
     torch_threads: int = 2
     http_max_connections: int = 100
     http_max_keepalive: int = 20

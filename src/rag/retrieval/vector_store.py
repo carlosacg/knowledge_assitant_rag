@@ -1,17 +1,34 @@
-"""Vector store client (Qdrant) for indexing and cosine similarity search."""
+"""Vector store: thin adapter over ``langchain_qdrant.QdrantVectorStore`` (cosine similarity).
+
+The adapter keeps the rest of the system on the domain models (``Chunk`` / ``ScoredChunk``) and
+adds what LangChain does not cover here: collection setup with payload indexes, metadata filters
+and non-blocking calls. langchain-qdrant has no native async API, so Qdrant calls run in a thread
+behind a ``CapacityLimiter``; the query embedding is computed with the async, cached
+``aembed_query`` beforehand.
+"""
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from functools import partial
 
-from qdrant_client import AsyncQdrantClient, models
+import anyio
+from langchain_core.embeddings import Embeddings
+from langchain_qdrant import QdrantVectorStore as LCQdrantVectorStore
+from qdrant_client import QdrantClient, models
 
 from rag.models import Chunk, ScoredChunk, SearchFilters
 
 logger = logging.getLogger(__name__)
 
+# langchain-qdrant stores the metadata under this payload key.
+METADATA_KEY = LCQdrantVectorStore.METADATA_KEY
 KEYWORD_INDEXES = ("tech_stack", "environment", "doc_type", "filepath", "content_type")
+
+
+def _field(name: str) -> str:
+    return f"{METADATA_KEY}.{name}"
 
 
 def build_qdrant_filter(filters: SearchFilters | None) -> models.Filter | None:
@@ -19,67 +36,92 @@ def build_qdrant_filter(filters: SearchFilters | None) -> models.Filter | None:
         return None
     must: list[models.Condition] = []
     if filters.tech_stack:
-        must.append(models.FieldCondition(key="tech_stack", match=models.MatchAny(any=list(filters.tech_stack))))
+        must.append(
+            models.FieldCondition(key=_field("tech_stack"), match=models.MatchAny(any=list(filters.tech_stack)))
+        )
     if filters.environment:
         must.append(
-            models.FieldCondition(key="environment", match=models.MatchAny(any=[filters.environment, "all"]))
+            models.FieldCondition(
+                key=_field("environment"), match=models.MatchAny(any=[filters.environment, "all"])
+            )
         )
     if filters.doc_type:
-        must.append(models.FieldCondition(key="doc_type", match=models.MatchValue(value=filters.doc_type)))
+        must.append(models.FieldCondition(key=_field("doc_type"), match=models.MatchValue(value=filters.doc_type)))
     return models.Filter(must=must) if must else None
 
 
 class QdrantVectorStore:
-    def __init__(self, client: AsyncQdrantClient, collection: str, dim: int) -> None:
+    def __init__(
+        self,
+        client: QdrantClient,
+        collection: str,
+        embeddings: Embeddings,
+        dim: int,
+        limiter: anyio.CapacityLimiter | None = None,
+    ) -> None:
         self.client = client
         self.collection = collection
+        self.embeddings = embeddings
         self.dim = dim
+        self.limiter = limiter
+        # validate_collection_config=False: the collection may not exist yet (API started before
+        # ingestion), and validation would embed a dummy text (a network call) at startup.
+        self.store = LCQdrantVectorStore(
+            client=client,
+            collection_name=collection,
+            embedding=embeddings,
+            distance=models.Distance.COSINE,
+            validate_collection_config=False,
+        )
 
-    async def ensure_collection(self, recreate: bool = False) -> None:
-        exists = await self.client.collection_exists(self.collection)
+    async def _run(self, func, *args, **kwargs):
+        return await anyio.to_thread.run_sync(partial(func, *args, **kwargs), limiter=self.limiter)
+
+    def _ensure_collection_sync(self, recreate: bool) -> None:
+        exists = self.client.collection_exists(self.collection)
         if exists and recreate:
-            await self.client.delete_collection(self.collection)
+            self.client.delete_collection(self.collection)
             exists = False
         if exists:
             return
-        await self.client.create_collection(
+        self.client.create_collection(
             collection_name=self.collection,
             vectors_config=models.VectorParams(size=self.dim, distance=models.Distance.COSINE),
         )
-        for field in KEYWORD_INDEXES:
-            await self.client.create_payload_index(
+        for name in KEYWORD_INDEXES:
+            self.client.create_payload_index(
                 collection_name=self.collection,
-                field_name=field,
+                field_name=_field(name),
                 field_schema=models.PayloadSchemaType.KEYWORD,
             )
         logger.info("colección creada", extra={"collection": self.collection, "dim": self.dim})
 
-    async def upsert(self, chunks: Sequence[Chunk], vectors: Sequence[Sequence[float]], batch_size: int = 128) -> None:
-        if len(chunks) != len(vectors):
-            raise ValueError("chunks y vectors deben tener el mismo largo")
-        points = [
-            models.PointStruct(id=chunk.point_id, vector=list(vector), payload=chunk.to_payload())
-            for chunk, vector in zip(chunks, vectors)
-        ]
-        for i in range(0, len(points), batch_size):
-            await self.client.upsert(collection_name=self.collection, points=points[i : i + batch_size], wait=True)
+    async def ensure_collection(self, recreate: bool = False) -> None:
+        await self._run(self._ensure_collection_sync, recreate)
 
-    async def search(
-        self, vector: Sequence[float], top_k: int, filters: SearchFilters | None = None
-    ) -> list[ScoredChunk]:
-        response = await self.client.query_points(
-            collection_name=self.collection,
-            query=list(vector),
-            query_filter=build_qdrant_filter(filters),
-            limit=top_k,
-            with_payload=True,
+    async def add_chunks(self, chunks: Sequence[Chunk], batch_size: int = 64) -> None:
+        """Embeds (via LangChain) and upserts the chunks; ids are deterministic, so re-runs are idempotent."""
+        await self.store.aadd_documents(
+            [c.to_document() for c in chunks], ids=[c.point_id for c in chunks], batch_size=batch_size
+        )
+
+    async def search(self, query: str, top_k: int, filters: SearchFilters | None = None) -> list[ScoredChunk]:
+        vector = await self.embeddings.aembed_query(query)
+        results = await self._run(
+            self.store.similarity_search_with_score_by_vector,
+            vector,
+            k=top_k,
+            filter=build_qdrant_filter(filters),
         )
         return [
-            ScoredChunk(Chunk.from_payload(point.payload or {}), float(point.score), {"dense": float(point.score)})
-            for point in response.points
+            ScoredChunk(Chunk.from_document(doc), float(score), {"dense": float(score)})
+            for doc, score in results
         ]
 
-    async def count(self) -> int:
-        if not await self.client.collection_exists(self.collection):
+    def _count_sync(self) -> int:
+        if not self.client.collection_exists(self.collection):
             return 0
-        return (await self.client.count(self.collection, exact=True)).count
+        return self.client.count(self.collection, exact=True).count
+
+    async def count(self) -> int:
+        return await self._run(self._count_sync)

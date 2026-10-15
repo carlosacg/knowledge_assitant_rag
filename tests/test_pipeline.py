@@ -3,6 +3,7 @@ from __future__ import annotations
 import anyio
 import pytest
 
+from rag.generation.llm import AnswerGenerator
 from rag.generation.pipeline import PipelineTimeoutError, RAGPipeline
 from rag.generation.prompts import ABSTENTION_MESSAGE
 from rag.models import SearchFilters
@@ -12,7 +13,7 @@ from tests.conftest import FakeLLM, FakeReranker, SlowReranker, make_settings
 def _pipeline(retriever, tmp_path, llm=None, reranker=None, **settings):
     return RAGPipeline(
         retriever,
-        llm or FakeLLM(),
+        AnswerGenerator(llm if llm is not None else FakeLLM()),
         make_settings(tmp_path, **settings),
         reranker=reranker or FakeReranker(),
         rerank_limiter=anyio.CapacityLimiter(2),
